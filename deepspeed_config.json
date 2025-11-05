@@ -1,0 +1,34 @@
+{
+  "train_micro_batch_size_per_gpu": "auto",
+  "bf16": { "enabled": true },
+  "zero3_init_flag": true,
+  "zero3_save_16bit_model": false,
+
+  "optimizer": {
+    "type": "AdamW",
+    "params": { "betas": [0.9, 0.999], "eps": 1e-8 }
+  },
+
+  "zero_optimization": {
+    "stage": 3,
+    "allgather_bucket_size": 33554432,
+    "reduce_bucket_size":    33554432,
+    "prefetch_bucket_size":  33554432,
+
+    "overlap_comm": true,
+    "contiguous_gradients": true,
+
+    "stage3_gather_16bit_weights_on_model_save": true,
+    "stage3_param_persistence_threshold": 0
+  },
+
+  "activation_checkpointing": {
+    "partition_activations": true,
+    "contiguous_memory_optimization": true
+  },
+
+  "checkpoint": {
+    "load_universal": true,
+    "use_node_local_storage": true
+  }
+}

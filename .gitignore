@@ -1,0 +1,26 @@
+# python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.venv/
+.env
+
+# os cruft
+.DS_Store
+
+# datasets / outputs
+data/out_sft+/
+results/
+outputs/
+token_lengths.csv
+
+# logs & checkpoints
+slurm-*.out
+*.log
+wandb/
+
+# huggingface caches (optional)
+cache/
+.huggingface/
