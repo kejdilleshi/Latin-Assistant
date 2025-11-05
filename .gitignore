@@ -24,3 +24,6 @@ wandb/
 # huggingface caches (optional)
 cache/
 .huggingface/
+
+# local batch scripts (contain secrets)
+*.sbatch
