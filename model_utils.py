@@ -82,7 +82,7 @@ def setup_model(args):
     model.config.gradient_checkpointing = True
 
     # Freeze bottom 50% of transformer layers
-    freeze_bottom_fraction_of_layers(model, fraction=0.50)
+    freeze_bottom_fraction_of_layers(model, fraction=0.40)
 
     return model
 
@@ -90,6 +90,23 @@ def setup_model(args):
 def setup_tokenizer(model_name: str):
     """Initialize tokenizer and set padding token if needed."""
     tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name_or_path=model_name)
+    # with open("patched_chat_template.jinja", "r") as f:
+    #     tokenizer.chat_template = f.read()
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
+    # quick sanity check: should NOT raise
+    # msgs = [
+    #     {"role": "user", "content": "hi, CHAT TEMPLETE TEST"},
+    #     {"role": "assistant", "content": "hello!"}
+    # ]
+    # chat_batch = tokenizer.apply_chat_template(
+    #     msgs,
+    #     tokenize=True,
+    #     add_generation_prompt=False,
+    #     return_assistant_tokens_mask=True,
+    #     return_dict=True,
+    #     return_tensors="pt"                  # or "np" depending on your stack
+    # )
+
+    # print("Chat template applied successfully during tokenizer setup.",chat_batch)
     return tokenizer

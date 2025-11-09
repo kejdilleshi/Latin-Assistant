@@ -2,7 +2,7 @@
 
 import json
 from typing import Dict, List
-from datasets import Dataset
+from datasets import Dataset, load_dataset
 from trl import apply_chat_template
 
 
@@ -10,11 +10,8 @@ def read_jsonl(path: str) -> List[Dict]:
     """Load and filter JSONL data by allowed tasks."""
     allowed_tasks = {
         "translate_idiomatic",
-        "transform",
-        "construct_tagging",
-        "translate_literal",
         "morphosyntax",
-        "contrast_judge"
+        "transform"
     }
     items = []
     with open(path, "r", encoding="utf-8") as f:
@@ -72,31 +69,96 @@ def preprocess_chat_format(example):
 
 
 def load_and_split_datasets(args, tokenizer):
-    """Load JSONL data, split into train/test/val, and preprocess."""
-    # Load data
-    all_items = read_jsonl("data/out_sft+/sft_items.jsonl")
-    full_ds = Dataset.from_list(all_items)
+    """Load data from local JSONL or HuggingFace, split into train/test/val, and preprocess."""
 
-    # Split: 80% train, 20% remainder
-    split_80_20 = full_ds.train_test_split(test_size=0.20, seed=args.seed)
-    train_ds = split_80_20["train"]
-    rem_ds = split_80_20["test"]
+    if args.dataset_name == "local":
+        # Load local JSONL data
+        print("Loading local dataset from JSONL file...")
+        all_items = read_jsonl("data/out_sft+/sft_items.jsonl")
+        full_ds = Dataset.from_list(all_items)
 
-    # From 20% remainder: 75% test (15% overall), 25% val (5% overall)
-    rem_split = rem_ds.train_test_split(test_size=0.25, seed=args.seed)
-    test_ds = rem_split["train"]
-    val_ds = rem_split["test"]
+        # Split: 80% train, 20% remainder
+        split_80_20 = full_ds.train_test_split(test_size=0.20, seed=args.seed)
+        train_ds = split_80_20["train"]
+        rem_ds = split_80_20["test"]
 
-    print(f"Split sizes -> train: {len(train_ds)}, test: {len(test_ds)}, val: {len(val_ds)}")
+        # From 20% remainder: 75% test (15% overall), 25% val (5% overall)
+        rem_split = rem_ds.train_test_split(test_size=0.25, seed=args.seed)
+        test_ds = rem_split["train"]
+        val_ds = rem_split["test"]
 
-    # Preprocess all splits
-    train_ds = train_ds.map(preprocess_completion_format, remove_columns=["prompt", "target"])
-    train_ds = train_ds.map(apply_chat_template, fn_kwargs={"tokenizer": tokenizer})
+        print(f"Split sizes -> train: {len(train_ds)}, test: {len(test_ds)}, val: {len(val_ds)}")
 
-    test_ds = test_ds.map(preprocess_completion_format, remove_columns=["prompt", "target"])
-    test_ds = test_ds.map(apply_chat_template, fn_kwargs={"tokenizer": tokenizer})
+        # Preprocess all splits
+        train_ds = train_ds.map(preprocess_completion_format, remove_columns=["prompt", "target"])
+        train_ds = train_ds.map(apply_chat_template, fn_kwargs={"tokenizer": tokenizer})
 
-    val_ds = val_ds.map(preprocess_completion_format, remove_columns=["prompt", "target"])
-    val_ds = val_ds.map(apply_chat_template, fn_kwargs={"tokenizer": tokenizer})
+        test_ds = test_ds.map(preprocess_completion_format, remove_columns=["prompt", "target"])
+        test_ds = test_ds.map(apply_chat_template, fn_kwargs={"tokenizer": tokenizer})
+
+        val_ds = val_ds.map(preprocess_completion_format, remove_columns=["prompt", "target"])
+        val_ds = val_ds.map(apply_chat_template, fn_kwargs={"tokenizer": tokenizer})
+
+    else:
+        # Load dataset from HuggingFace
+        print(f"Loading dataset from HuggingFace: {args.dataset_name}")
+        dataset = load_dataset(args.dataset_name, split=args.split)
+
+        # Check if dataset already has predefined splits
+        try:
+            # Try to load predefined splits if they exist
+            train_ds = load_dataset(args.dataset_name, split="train")
+            test_ds = load_dataset(args.dataset_name, split="test")
+
+            # Create validation split from train if no validation split exists
+            try:
+                val_ds = load_dataset(args.dataset_name, split="validation")
+            except:
+                # Split train to create validation set: 95% train, 5% val
+                split_train_val = train_ds.train_test_split(test_size=0.05, seed=args.seed)
+                train_ds = split_train_val["train"]
+                val_ds = split_train_val["test"]
+
+            print(f"Split sizes -> train: {len(train_ds)}, test: {len(test_ds)}, val: {len(val_ds)}")
+        except:
+            # No predefined splits, create our own
+            print("No predefined splits found, creating splits...")
+            # Split: 80% train, 20% remainder
+            split_80_20 = dataset.train_test_split(test_size=0.20, seed=args.seed)
+            train_ds = split_80_20["train"]
+            rem_ds = split_80_20["test"]
+
+            # From 20% remainder: 75% test (15% overall), 25% val (5% overall)
+            rem_split = rem_ds.train_test_split(test_size=0.25, seed=args.seed)
+            test_ds = rem_split["train"]
+            val_ds = rem_split["test"]
+
+            print(f"Split sizes -> train: {len(train_ds)}, test: {len(test_ds)}, val: {len(val_ds)}")
+
+        # Preprocess HuggingFace datasets
+        # Check if dataset already has 'messages' field (common for chat datasets)
+
+        print("Preprocessing datasets, the dataset is in chat format:", train_ds.column_names)
+        if "messages" in train_ds.column_names:
+            # Dataset already in chat format, just apply chat template
+            train_ds = train_ds.map(apply_chat_template, fn_kwargs={"tokenizer": tokenizer})
+            test_ds = test_ds.map(apply_chat_template, fn_kwargs={"tokenizer": tokenizer})
+            val_ds = val_ds.map(apply_chat_template, fn_kwargs={"tokenizer": tokenizer})
+        elif "prompt" in train_ds.column_names and "target" in train_ds.column_names:
+            # Dataset has prompt/target format
+            train_ds = train_ds.map(preprocess_completion_format, remove_columns=["prompt", "target"])
+            train_ds = train_ds.map(apply_chat_template, fn_kwargs={"tokenizer": tokenizer})
+
+            test_ds = test_ds.map(preprocess_completion_format, remove_columns=["prompt", "target"])
+            test_ds = test_ds.map(apply_chat_template, fn_kwargs={"tokenizer": tokenizer})
+
+            val_ds = val_ds.map(preprocess_completion_format, remove_columns=["prompt", "target"])
+            val_ds = val_ds.map(apply_chat_template, fn_kwargs={"tokenizer": tokenizer})
+        else:
+            # Try to handle other common formats (conversation, text, etc.)
+            # Apply chat template directly if possible
+            train_ds = train_ds.map(apply_chat_template, fn_kwargs={"tokenizer": tokenizer})
+            test_ds = test_ds.map(apply_chat_template, fn_kwargs={"tokenizer": tokenizer})
+            val_ds = val_ds.map(apply_chat_template, fn_kwargs={"tokenizer": tokenizer})
 
     return train_ds, test_ds, val_ds

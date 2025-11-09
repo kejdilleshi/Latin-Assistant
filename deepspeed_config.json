@@ -3,12 +3,7 @@
   "bf16": { "enabled": true },
   "zero3_init_flag": true,
   "zero3_save_16bit_model": false,
-
-  "optimizer": {
-    "type": "AdamW",
-    "params": { "betas": [0.9, 0.999], "eps": 1e-8 }
-  },
-
+  
   "zero_optimization": {
     "stage": 3,
     "allgather_bucket_size": 33554432,
