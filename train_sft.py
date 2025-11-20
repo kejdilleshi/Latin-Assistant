@@ -9,22 +9,21 @@ import wandb
 from model_utils import setup_model, setup_tokenizer
 from data_utils import load_and_split_datasets
 from trainer_utils import create_trainer
-from trl import apply_chat_template
 
 
 def build_argparser() -> argparse.Namespace:
     """Parse command-line arguments for training configuration."""
     p = argparse.ArgumentParser()
     p.add_argument("--model_name", type=str, default="HuggingFaceTB/SmolLM3-3B")
-    p.add_argument("--dataset_name", type=str, default="HuggingFaceTB/everyday-conversations-llama3.1-2k")
+    p.add_argument("--dataset_name", type=str, default="local")
     p.add_argument("--split", type=str, default="train")
-    p.add_argument("--output_dir", type=str, default="results/SmolLM3_EDC_sft_gradnorm")
+    p.add_argument("--output_dir", type=str, default="results/SmolLM3_Latin_sft_packing_bs4_lr1e-6_ep1_")
     p.add_argument("--deepspeed", type=str, default='./deepspeed_config.json',
                    help="Path to DeepSpeed config JSON")
     p.add_argument("--per_device_train_batch_size", type=int, default=4)
     p.add_argument("--num_train_epochs", type=float, default=1.0)
-    p.add_argument("--learning_rate", type=float, default=1e-5)
-    p.add_argument("--logging_steps", type=int, default=10)
+    p.add_argument("--learning_rate", type=float, default=1e-6)
+    p.add_argument("--logging_steps", type=int, default=25)
     p.add_argument("--save_steps", type=int, default=50)
     p.add_argument("--save_total_limit", type=int, default=2)
     p.add_argument("--seed", type=int, default=42)
@@ -41,6 +40,13 @@ def build_argparser() -> argparse.Namespace:
                    help="WandB run name (defaults to output_dir basename)")
     p.add_argument("--use_wandb", action="store_true", default=True,
                    help="Enable WandB logging")
+
+    # Training configuration
+    p.add_argument("--packing", action="store_true", default=False,
+                   help="Enable packing for SFT training")
+    p.add_argument("--local_data_path", type=str, default="data/sft_loredana_plus/sft_items.jsonl",
+                   help="Path to local JSONL data file (used when dataset_name='local')")
+
 
     return p.parse_known_args()
 
@@ -64,40 +70,10 @@ def main():
     tokenizer = setup_tokenizer(args.model_name)
 
     # Load and preprocess datasets
-    # train_ds, test_ds, val_ds = load_and_split_datasets(args, tokenizer)
-    # Manually load only train and test datasets
-    from datasets import load_dataset
-
-    # Load dataset manually
-    dataset = load_dataset("HuggingFaceTB/everyday-conversations-llama3.1-2k")
-
-    # Get available splits
-    train_ds = dataset["train_sft"]
-    test_ds = dataset["test_sft"]
-
-    # Make a small validation split from train_sft
-    val_split = train_ds.train_test_split(test_size=0.05, seed=42)
-    train_ds = val_split["train"]
-    val_ds = val_split["test"]
-
-
-    def _keep_only_messages(ds):
-        return ds.remove_columns([c for c in ds.column_names if c != "messages"])
-
-    train_ds = _keep_only_messages(train_ds)
-    val_ds   = _keep_only_messages(val_ds)
-    test_ds  = _keep_only_messages(test_ds)
-
-    if "messages" in train_ds.column_names:
-           # Dataset already in chat format, just apply chat template
-           train_ds = train_ds.map(apply_chat_template, fn_kwargs={"tokenizer": tokenizer})
-           test_ds = test_ds.map(apply_chat_template, fn_kwargs={"tokenizer": tokenizer})
-           val_ds = val_ds.map(apply_chat_template, fn_kwargs={"tokenizer": tokenizer})
-
-
+    train_ds, test_ds, val_ds = load_and_split_datasets(args, tokenizer)
 
     # Create trainer and start training
-    trainer = create_trainer(model, train_ds, test_ds, args)
+    trainer = create_trainer(model, train_ds, val_ds, args)
     trainer.train()
 
     # Save the final model and tokenizer

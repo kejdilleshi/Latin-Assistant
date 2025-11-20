@@ -82,7 +82,7 @@ def setup_model(args):
     model.config.gradient_checkpointing = True
 
     # Freeze bottom 50% of transformer layers
-    freeze_bottom_fraction_of_layers(model, fraction=0.40)
+    freeze_bottom_fraction_of_layers(model, fraction=0.50)
 
     return model
 

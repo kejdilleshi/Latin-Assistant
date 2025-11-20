@@ -23,7 +23,9 @@
   },
 
   "checkpoint": {
-    "load_universal": true,
+    "load_universal": false,
     "use_node_local_storage": true
-  }
+  },
+    "gradient_clipping": 1.0        
+
 }

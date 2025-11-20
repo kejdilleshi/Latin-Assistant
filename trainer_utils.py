@@ -22,11 +22,15 @@ def create_trainer(model, train_ds, val_ds, args):
         save_steps=args.save_steps,
         save_total_limit=args.save_total_limit,
         do_eval=True,
-        eval_steps=10,
+        eval_steps=args.logging_steps,
         eval_strategy="steps",
+        save_strategy="steps",  # Align save strategy with eval strategy
+        load_best_model_at_end=True,  # Load best model at end of training
+        metric_for_best_model="eval_loss",  # Use evaluation loss as the metric
+        greater_is_better=False,  # Lower loss is better
         deepspeed=args.deepspeed,
         gradient_checkpointing=True,
-        packing=False,
+        packing=args.packing,
         assistant_only_loss=True,
         max_length=2048,
         warmup_ratio= 0.03,

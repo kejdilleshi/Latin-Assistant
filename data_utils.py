@@ -28,10 +28,10 @@ def read_jsonl(path: str) -> List[Dict]:
             if "prompt" not in obj or "target" not in obj:
                 raise ValueError(f"Line {i} missing 'prompt' or 'target' field.")
 
-            # Keep only allowed tasks; skip if missing or not allowed
-            task = obj.get("task")
-            if task not in allowed_tasks:
-                continue
+            # # Keep only allowed tasks; skip if missing or not allowed
+            # task = obj.get("task")
+            # if task not in allowed_tasks:
+            #     continue
 
             prompt = str(obj["prompt"]).strip()
             target = str(obj["target"]).strip()
@@ -73,30 +73,31 @@ def load_and_split_datasets(args, tokenizer):
 
     if args.dataset_name == "local":
         # Load local JSONL data
-        print("Loading local dataset from JSONL file...")
-        all_items = read_jsonl("data/out_sft+/sft_items.jsonl")
+        local_path = getattr(args, 'local_data_path', 'data/sft_loredana_plus/sft_items.jsonl')
+        print(f"Loading local dataset from JSONL file: {local_path}")
+        all_items = read_jsonl(local_path)
         full_ds = Dataset.from_list(all_items)
 
         # Split: 80% train, 20% remainder
-        split_80_20 = full_ds.train_test_split(test_size=0.20, seed=args.seed)
+        split_80_20 = full_ds.train_test_split(test_size=0.10, seed=args.seed)
         train_ds = split_80_20["train"]
         rem_ds = split_80_20["test"]
 
         # From 20% remainder: 75% test (15% overall), 25% val (5% overall)
-        rem_split = rem_ds.train_test_split(test_size=0.25, seed=args.seed)
+        rem_split = rem_ds.train_test_split(test_size=0.5, seed=args.seed)
         test_ds = rem_split["train"]
         val_ds = rem_split["test"]
 
         print(f"Split sizes -> train: {len(train_ds)}, test: {len(test_ds)}, val: {len(val_ds)}")
 
         # Preprocess all splits
-        train_ds = train_ds.map(preprocess_completion_format, remove_columns=["prompt", "target"])
+        train_ds = train_ds.map(preprocess_chat_format, remove_columns=["prompt", "target"])
         train_ds = train_ds.map(apply_chat_template, fn_kwargs={"tokenizer": tokenizer})
 
-        test_ds = test_ds.map(preprocess_completion_format, remove_columns=["prompt", "target"])
+        test_ds = test_ds.map(preprocess_chat_format, remove_columns=["prompt", "target"])
         test_ds = test_ds.map(apply_chat_template, fn_kwargs={"tokenizer": tokenizer})
 
-        val_ds = val_ds.map(preprocess_completion_format, remove_columns=["prompt", "target"])
+        val_ds = val_ds.map(preprocess_chat_format, remove_columns=["prompt", "target"])
         val_ds = val_ds.map(apply_chat_template, fn_kwargs={"tokenizer": tokenizer})
 
     else:

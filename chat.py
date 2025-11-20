@@ -1,28 +1,45 @@
 from transformers import AutoModelForCausalLM, AutoTokenizer
+import torch
 
+# --- config ---
+model_name = "results/sweep_lr1e-06_bs2_ep1_nopack/checkpoint-80"  # local fine-tune
+use_multi_gpu = True  # set False if you want only a single GPU
 
-from transformers import AutoModelForCausalLM, AutoTokenizer
-
-# model_name = "results/smol_masked_20/checkpoint-1200"  # or "HuggingFaceTB/SmolLM3-3B"
-model_name = "results/SmolLM3_EDC_sft/checkpoint-200" 
-# model_name = "Qwen/Qwen3-4B-Instruct-2507"
-
-
-# load the tokenizer and the model
-tokenizer = AutoTokenizer.from_pretrained(
-    model_name, use_fast=True, local_files_only=True
-)
-model = AutoModelForCausalLM.from_pretrained(
-    model_name, trust_remote_code=True, local_files_only=True
-)
-
-# optional: ensure pad_token_id so generate doesn't complain
+# --- load tokenizer ---
+tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True, local_files_only=True)
 if tokenizer.pad_token_id is None and tokenizer.eos_token_id is not None:
     tokenizer.pad_token_id = tokenizer.eos_token_id
 
-# conversation state (multi-turn)
-messages_think = [
-    {"role": "system", "content": """You are a Robot."""},
+# --- load model on GPU(s) ---
+if use_multi_gpu and torch.cuda.device_count() > 1:
+    # Shard across visible GPUs
+    model = AutoModelForCausalLM.from_pretrained(
+        model_name,
+        trust_remote_code=True,
+        local_files_only=True,
+        device_map="auto",        # <- uses all visible GPUs
+        torch_dtype=torch.float16 # or torch.bfloat16 if your GPUs support it
+    )
+else:
+    # Single GPU (or CPU fallback)
+    print("CUDA devices:", torch.cuda.device_count())
+
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    model = AutoModelForCausalLM.from_pretrained(
+        model_name,
+        trust_remote_code=True,
+        local_files_only=True,
+        torch_dtype=torch.float16 if torch.cuda.is_available() else None
+    ).to(device)
+
+# --- quick sanity print for placement ---
+print("Device map:", getattr(model, "hf_device_map", "single-device"))
+if not torch.cuda.is_available():
+    print("WARNING: CUDA not available; running on CPU.")
+
+# --- chat loop ---
+messages = [
+    {"role": "system", "content": """You are a helpfull assistant."""},
 ]
 
 print("Ready. Type your message (Ctrl+C to exit).")
@@ -32,36 +49,39 @@ while True:
         if not user_text:
             continue
 
-        # add user turn
-        messages_think.append({"role": "user", "content": user_text})
+        messages.append({"role": "user", "content": user_text})
 
-        # render with chat template
-        text = tokenizer.apply_chat_template(
-            messages_think,
+        # Render with chat template
+        prompt_text = tokenizer.apply_chat_template(
+            messages,
             tokenize=False,
             add_generation_prompt=True,
         )
 
-        # tokenize & move to device
-        model_inputs = tokenizer([text], return_tensors="pt").to(model.device)
+        # Tokenize; send inputs to an appropriate device
+        # For sharded models, sending to cuda:0 works well
+        input_device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        model_inputs = tokenizer([prompt_text], return_tensors="pt").to(input_device)
 
-        # generate
-        generated_ids = model.generate(
-            **model_inputs,
-            do_sample=False,
-            # temperature=0.7,
-            # top_p=0.5,              # keep <= 1.0
-            max_new_tokens=128,
-            pad_token_id=tokenizer.pad_token_id,
-        )
-        # decode only the newly generated tokens
-        output_ids = generated_ids[0][len(model_inputs):] # print only the generated part 
-        # output_ids = generated_ids[0][:] # print all 
-        assistant_text = tokenizer.decode(output_ids, skip_special_tokens=True).strip()
+        # Generate
+        with torch.no_grad():
+            generated = model.generate(
+                **model_inputs,
+                do_sample=False,                 # greedy; flip to True + temperature/top_p if you want sampling
+                max_new_tokens=1024,
+                pad_token_id=tokenizer.pad_token_id,
+            )
+
+        # ==== ONLY NEW TOKENS ====
+        # Slice off the prompt length to keep *only* the model's continuation
+        input_len = model_inputs["input_ids"].shape[-1]
+        new_tokens = generated[0, input_len:]
+        assistant_text = tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
+
         print("Assistant:", assistant_text)
 
         # add assistant turn back to history
-        messages_think.append({"role": "assistant", "content": assistant_text})
+        messages.append({"role": "assistant", "content": assistant_text})
 
     except KeyboardInterrupt:
         print("\nBye!")
