@@ -3,7 +3,6 @@
 import json
 from typing import Dict, List
 from datasets import Dataset, load_dataset
-from trl import apply_chat_template
 
 
 def read_jsonl(path: str) -> List[Dict]:
@@ -90,15 +89,11 @@ def load_and_split_datasets(args, tokenizer):
 
         print(f"Split sizes -> train: {len(train_ds)}, test: {len(test_ds)}, val: {len(val_ds)}")
 
-        # Preprocess all splits
+        # Preprocess all splits - only convert to messages format
+        # SFTTrainer will handle tokenization internally
         train_ds = train_ds.map(preprocess_chat_format, remove_columns=["prompt", "target"])
-        train_ds = train_ds.map(apply_chat_template, fn_kwargs={"tokenizer": tokenizer})
-
         test_ds = test_ds.map(preprocess_chat_format, remove_columns=["prompt", "target"])
-        test_ds = test_ds.map(apply_chat_template, fn_kwargs={"tokenizer": tokenizer})
-
         val_ds = val_ds.map(preprocess_chat_format, remove_columns=["prompt", "target"])
-        val_ds = val_ds.map(apply_chat_template, fn_kwargs={"tokenizer": tokenizer})
 
     else:
         # Load dataset from HuggingFace
@@ -141,25 +136,15 @@ def load_and_split_datasets(args, tokenizer):
 
         print("Preprocessing datasets, the dataset is in chat format:", train_ds.column_names)
         if "messages" in train_ds.column_names:
-            # Dataset already in chat format, just apply chat template
-            train_ds = train_ds.map(apply_chat_template, fn_kwargs={"tokenizer": tokenizer})
-            test_ds = test_ds.map(apply_chat_template, fn_kwargs={"tokenizer": tokenizer})
-            val_ds = val_ds.map(apply_chat_template, fn_kwargs={"tokenizer": tokenizer})
+            # Dataset already in chat format, SFTTrainer will handle tokenization
+            pass
         elif "prompt" in train_ds.column_names and "target" in train_ds.column_names:
-            # Dataset has prompt/target format
+            # Dataset has prompt/target format, convert to messages
             train_ds = train_ds.map(preprocess_completion_format, remove_columns=["prompt", "target"])
-            train_ds = train_ds.map(apply_chat_template, fn_kwargs={"tokenizer": tokenizer})
-
             test_ds = test_ds.map(preprocess_completion_format, remove_columns=["prompt", "target"])
-            test_ds = test_ds.map(apply_chat_template, fn_kwargs={"tokenizer": tokenizer})
-
             val_ds = val_ds.map(preprocess_completion_format, remove_columns=["prompt", "target"])
-            val_ds = val_ds.map(apply_chat_template, fn_kwargs={"tokenizer": tokenizer})
         else:
-            # Try to handle other common formats (conversation, text, etc.)
-            # Apply chat template directly if possible
-            train_ds = train_ds.map(apply_chat_template, fn_kwargs={"tokenizer": tokenizer})
-            test_ds = test_ds.map(apply_chat_template, fn_kwargs={"tokenizer": tokenizer})
-            val_ds = val_ds.map(apply_chat_template, fn_kwargs={"tokenizer": tokenizer})
+            # For other formats, try to convert to messages if possible
+            print("Warning: Dataset format not recognized. SFTTrainer may have issues.")
 
     return train_ds, test_ds, val_ds

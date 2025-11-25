@@ -3,9 +3,27 @@
 from trl import SFTTrainer, SFTConfig
 
 
-def create_trainer(model, train_ds, val_ds, args):
+def create_trainer(model, tokenizer, train_ds, val_ds, args):
     """Create and configure the SFTTrainer."""
     print("Building SFTTrainer…")
+
+    # Debug: Test tokenizer before creating trainer
+    print("\n[DEBUG] Testing tokenizer with sample message...")
+    test_msg = [
+        {"role": "user", "content": "Test prompt"},
+        {"role": "assistant", "content": "Test response"}
+    ]
+    test_result = tokenizer.apply_chat_template(
+        test_msg,
+        tokenize=True,
+        return_dict=True,
+        return_assistant_tokens_mask=True,
+    )
+    print(f"[DEBUG] Test tokenization successful: {len(test_result.get('input_ids', []))} tokens")
+    print(f"[DEBUG] Has assistant_masks: {'assistant_masks' in test_result}")
+    if 'assistant_masks' in test_result:
+        print(f"[DEBUG] Assistant tokens found: {sum(test_result['assistant_masks'])} out of {len(test_result['assistant_masks'])}")
+    print()
 
     # Determine wandb settings
     report_to = ["wandb"] if args.use_wandb else []
@@ -25,7 +43,7 @@ def create_trainer(model, train_ds, val_ds, args):
         eval_steps=args.logging_steps,
         eval_strategy="steps",
         save_strategy="steps",  # Align save strategy with eval strategy
-        load_best_model_at_end=True,  # Load best model at end of training
+        load_best_model_at_end=False,  # Load best model at end of training
         metric_for_best_model="eval_loss",  # Use evaluation loss as the metric
         greater_is_better=False,  # Lower loss is better
         deepspeed=args.deepspeed,
@@ -45,6 +63,7 @@ def create_trainer(model, train_ds, val_ds, args):
         args=sft_config,
         train_dataset=train_ds,
         eval_dataset=val_ds,
+        processing_class=tokenizer,  # Pass the tokenizer explicitly
     )
 
     return trainer

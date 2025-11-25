@@ -23,6 +23,9 @@ def find_sweep_models(base_dir: str = "results"):
     """
     Find all sweep model directories.
 
+    For each sweep directory, prefer final_model if it exists,
+    otherwise use the checkpoint with the largest number.
+
     Args:
         base_dir: Base directory containing sweep results
 
@@ -34,17 +37,40 @@ def find_sweep_models(base_dir: str = "results"):
         print(f"⚠️  Base directory {base_dir} does not exist")
         return []
 
-    # Find all sweep_* directories
-    sweep_dirs = sorted(base_path.glob("sweep_*"))
+    # Find all sweep directories (sweep_* or *_sweep_*)
+    sweep_dirs = sorted(base_path.glob("*sweep*"))
 
-    # Check for final_model subdirectory
+    # Check for final_model subdirectory or latest checkpoint
     model_paths = []
     for sweep_dir in sweep_dirs:
         final_model_path = sweep_dir / "final_model"
+
         if final_model_path.exists() and final_model_path.is_dir():
+            # Prefer final_model if it exists
             model_paths.append(final_model_path)
+            print(f"✅ Using final_model in {sweep_dir.name}")
         else:
-            print(f"⚠️  No final_model found in {sweep_dir}")
+            # Look for checkpoint-* directories
+            checkpoint_dirs = list(sweep_dir.glob("checkpoint-*"))
+
+            if checkpoint_dirs:
+                # Extract checkpoint numbers and find the largest
+                checkpoint_numbers = []
+                for ckpt_dir in checkpoint_dirs:
+                    match = re.search(r'checkpoint-(\d+)', ckpt_dir.name)
+                    if match:
+                        checkpoint_numbers.append((int(match.group(1)), ckpt_dir))
+
+                if checkpoint_numbers:
+                    # Sort by checkpoint number and get the largest
+                    checkpoint_numbers.sort(key=lambda x: x[0], reverse=True)
+                    largest_checkpoint = checkpoint_numbers[0][1]
+                    model_paths.append(largest_checkpoint)
+                    print(f"✅ Using {largest_checkpoint.name} in {sweep_dir.name}")
+                else:
+                    print(f"⚠️  No valid checkpoints found in {sweep_dir}")
+            else:
+                print(f"⚠️  No final_model or checkpoints found in {sweep_dir}")
 
     return model_paths
 

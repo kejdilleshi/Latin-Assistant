@@ -18,19 +18,19 @@ from itertools import product
 from datetime import datetime
 
 # Define hyperparameter grid
-LEARNING_RATES = [1e-5]
-BATCH_SIZES = [2, 4]
-EPOCHS = [1]
+LEARNING_RATES = [1e-5,5e-6]
+BATCH_SIZES = [1, 2]
+EPOCHS = [1,2]
 PACKING = [True] 
 # Common training arguments
 BASE_ARGS = {
-    "model_name": "HuggingFaceTB/SmolLM3-3B",
+    "model_name": "meta-llama/Llama-3.1-8B-Instruct",
     "dataset_name": "local",
     "split": "train",
     "deepspeed": "./deepspeed_config.json",
     "logging_steps": 20,
-    "save_steps": 20,
-    "save_total_limit": 2,
+    "save_steps": 40,
+    "save_total_limit": 1,
     "seed": 42,
     "wandb_project": "Train-sft-sweep",
     "wandb_entity": "kejdi-lleshi-university-of-lausanne",
@@ -51,8 +51,8 @@ def run_training_config(lr, bs, ep, packing, run_number, total_runs):
     """
     # Create output directory name
     pack_str = "pack" if packing else "nopack"
-    output_dir = f"results/sweep_lr{lr:.0e}_bs{bs}_ep{ep}_{pack_str}_freeze50"
-    wandb_run_name = f"lr{lr:.0e}_bs{bs}_ep{ep}_{pack_str}"
+    output_dir = f"/scratch/klleshi/Latin-chatbot/data/Llama_sweep_lr{lr:.0e}_bs{bs}_ep{ep}_{pack_str}_masked"
+    wandb_run_name = f"llama_lr{lr:.0e}_bs{bs}_ep{ep}_{pack_str}"
 
     print("\n" + "="*80)
     print(f"RUN {run_number}/{total_runs}")

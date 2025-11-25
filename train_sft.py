@@ -14,18 +14,18 @@ from trainer_utils import create_trainer
 def build_argparser() -> argparse.Namespace:
     """Parse command-line arguments for training configuration."""
     p = argparse.ArgumentParser()
-    p.add_argument("--model_name", type=str, default="HuggingFaceTB/SmolLM3-3B")
+    p.add_argument("--model_name", type=str, default="meta-llama/Llama-3.1-8B-Instruct")
     p.add_argument("--dataset_name", type=str, default="local")
     p.add_argument("--split", type=str, default="train")
-    p.add_argument("--output_dir", type=str, default="results/SmolLM3_Latin_sft_packing_bs4_lr1e-6_ep1_")
+    p.add_argument("--output_dir", type=str, default="/scratch/klleshi/Latin-chatbot/data/smollm_sft_no_mask")
     p.add_argument("--deepspeed", type=str, default='./deepspeed_config.json',
                    help="Path to DeepSpeed config JSON")
-    p.add_argument("--per_device_train_batch_size", type=int, default=4)
+    p.add_argument("--per_device_train_batch_size", type=int, default=1)
     p.add_argument("--num_train_epochs", type=float, default=1.0)
-    p.add_argument("--learning_rate", type=float, default=1e-6)
-    p.add_argument("--logging_steps", type=int, default=25)
-    p.add_argument("--save_steps", type=int, default=50)
-    p.add_argument("--save_total_limit", type=int, default=2)
+    p.add_argument("--learning_rate", type=float, default=1e-5)
+    p.add_argument("--logging_steps", type=int, default=20)
+    p.add_argument("--save_steps", type=int, default=40)
+    p.add_argument("--save_total_limit", type=int, default=1)
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--local_rank", type=int,
                    default=int(os.environ.get("LOCAL_RANK", -1)),
@@ -42,7 +42,7 @@ def build_argparser() -> argparse.Namespace:
                    help="Enable WandB logging")
 
     # Training configuration
-    p.add_argument("--packing", action="store_true", default=False,
+    p.add_argument("--packing", action="store_true", default=True,
                    help="Enable packing for SFT training")
     p.add_argument("--local_data_path", type=str, default="data/sft_loredana_plus/sft_items.jsonl",
                    help="Path to local JSONL data file (used when dataset_name='local')")
@@ -66,14 +66,22 @@ def main():
             os.environ["WANDB_NAME"] = args.wandb_run_name
 
     # Setup model and tokenizer
-    model = setup_model(args)
     tokenizer = setup_tokenizer(args.model_name)
+    model = setup_model(args)
 
     # Load and preprocess datasets
     train_ds, test_ds, val_ds = load_and_split_datasets(args, tokenizer)
 
+    # Verify tokenizer has the custom chat template before creating trainer
+    print("\n" + "="*80)
+    print("VERIFYING TOKENIZER CHAT TEMPLATE")
+    print("="*80)
+    print("Chat template contains '{% generation %}':", "{% generation %}" in tokenizer.chat_template)
+    print("Chat template first 200 chars:", tokenizer.chat_template[:200])
+    print("="*80 + "\n")
+
     # Create trainer and start training
-    trainer = create_trainer(model, train_ds, val_ds, args)
+    trainer = create_trainer(model, tokenizer, train_ds, val_ds, args)
     trainer.train()
 
     # Save the final model and tokenizer
