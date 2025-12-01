@@ -18,8 +18,8 @@ from itertools import product
 from datetime import datetime
 
 # Define hyperparameter grid
-LEARNING_RATES = [1e-5,5e-6]
-BATCH_SIZES = [1, 2]
+LEARNING_RATES = [1e-6, 5e-6]
+BATCH_SIZES = [2,4]
 EPOCHS = [1,2]
 PACKING = [True] 
 # Common training arguments

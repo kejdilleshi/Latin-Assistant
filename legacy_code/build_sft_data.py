@@ -218,7 +218,7 @@ def make_sft_items(
         "id": f"{pid}.a.morphosyntax",
         "task": "morphosyntax",
         "prompt": (
-            "Task: For each token, output FORM<TAB>LEMMA<TAB>UPOS<TAB>FEATS<TAB>HEAD<TAB>DEPREL "
+            "Task: For each token, output FORM<TAB>LEMMA<TAB>UPOS<TAB>FEATS "
             f"for the sentence. Latin: {sentence_text}"
         ),
         "target": tokens_to_tabular(pack.morphosyntax),

@@ -1,0 +1,12 @@
+datasets==4.0.0
+matplotlib==3.10.7
+numpy==2.3.5
+openai==2.8.1
+pandas==2.3.3
+pydantic==2.12.5
+setuptools==80.9.0
+torch==2.8.0
+tqdm==4.67.1
+transformers==4.57.1
+trl==0.23.1
+wandb==0.23.0

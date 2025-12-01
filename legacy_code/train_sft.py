@@ -72,14 +72,6 @@ def main():
     # Load and preprocess datasets
     train_ds, test_ds, val_ds = load_and_split_datasets(args, tokenizer)
 
-    # Verify tokenizer has the custom chat template before creating trainer
-    print("\n" + "="*80)
-    print("VERIFYING TOKENIZER CHAT TEMPLATE")
-    print("="*80)
-    print("Chat template contains '{% generation %}':", "{% generation %}" in tokenizer.chat_template)
-    print("Chat template first 200 chars:", tokenizer.chat_template[:200])
-    print("="*80 + "\n")
-
     # Create trainer and start training
     trainer = create_trainer(model, tokenizer, train_ds, val_ds, args)
     trainer.train()

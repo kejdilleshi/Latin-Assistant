@@ -31,7 +31,7 @@ from datetime import datetime
 from pathlib import Path
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from benchmark import benchmark_exam
+from benchmark.benchmark import benchmark_exam
 
 
 def load_model_and_tokenizer(model_path: str, device: str = "auto"):

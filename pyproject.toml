@@ -1,0 +1,62 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sft-training"
+version = "0.1.0"
+description = "A package for Supervised Fine-Tuning with DeepSpeed"
+readme = "Readme.md"
+authors = [
+    {name = "Kejdi Lleshi", email = "kejdi.lleshi@unil.ch"}
+]
+requires-python = ">=3.8"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "torch>=2.0.0",
+    "transformers>=4.30.0",
+    "datasets>=2.12.0",
+    "deepspeed>=0.9.0",
+    "trl>=0.7.0",
+    "wandb>=0.15.0",
+    "accelerate>=0.20.0",
+    "peft>=0.4.0",
+    "openai>=1.40.0",
+    "pydantic>=2.5.0",
+    "tqdm>=4.65.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0",
+]
+
+[project.scripts]
+sft-train = "scripts.train_sft:main"
+sft-sweep = "scripts.run_hyperparameter_sweep:main"
+sft-build-data = "scripts.build_sft_data:main"
+
+[tool.black]
+line-length = 100
+target-version = ['py38', 'py39', 'py310', 'py311', 'py312']
+include = '\.pyi?$'
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
